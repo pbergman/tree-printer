@@ -1,0 +1,22 @@
+{
+    "name": "pbergman/tree-helper",
+    "type": "library",
+    "description": "A symfony console helper to print a tree",
+    "keywords": ["builder","symfony","console","array","tree"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Philip Bergman",
+            "email": "pbergman@live.nl"
+        }
+    ],
+    "require": {
+        "php": ">=5.4.0",
+        "symfony/console": "~2.6"
+    },
+    "autoload": {
+        "psr-0": {
+            "PBergman": "src"
+        }
+    }
+}
