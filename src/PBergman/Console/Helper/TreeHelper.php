@@ -29,11 +29,14 @@ class TreeHelper
     protected $data;
     /** @var  OutputInterface */
     protected $output;
+    /** @var  int */
+    protected $maxDepth;
 
     const LINE_PREFIX_EMPTY = 1;
     const LINE_PREFIX = 2;
     const TEXT_PREFIX = 3;
     const TEXT_PREFIX_END = 4;
+    const MAX_DEPTH_MARKER_VALUE = '**##MAX_DEPTH##**';
 
     /** @var array  */
     protected $formats = [
@@ -68,7 +71,6 @@ class TreeHelper
         if (null === $node->getTitle()) {
             throw new \InvalidArgumentException('Given node does not have a title!');
         }
-
         // to fix if node is added multiple times
         if ($this->getRoot()->getNodes()->contains($node)) {
             $newNode = new self();
@@ -77,11 +79,9 @@ class TreeHelper
                 ->setValues($node->getValues());
             $node = $newNode;
         }
-
         if (null === $node->end()) {
             $node->setParent($this);
         }
-
         if (is_null($this->parent)) {
             $this->nodes->attach($node);
         } else {
@@ -101,25 +101,24 @@ class TreeHelper
     {
         $this->output = $output;
         $array = $this->toArray();
-
         $this->write(!(empty($this->title)) ? $this->title : '.');
         $this->write('│');
-
-        foreach ($array as $index => $firstChild) {
-
-            $haveChildren =  !empty($firstChild['children']);
-
-            if (self::isLast($array, $index)) {
-                $this->write(sprintf('%s%s', $this->formats[self::TEXT_PREFIX_END], $firstChild['title']));
-                $this->writeData($firstChild['data'], $haveChildren , $this->formats[self::LINE_PREFIX_EMPTY]);
-                $this->writeChildren($firstChild['children'], $this->formats[self::LINE_PREFIX_EMPTY]);
-            } else {
-                $this->write(sprintf('%s%s', $this->formats[self::TEXT_PREFIX], $firstChild['title']));
-                $this->writeData($firstChild['data'], $haveChildren, $this->formats[self::LINE_PREFIX]);
-                $this->writeChildren($firstChild['children'], $this->formats[self::LINE_PREFIX]);
-            }
+        if (!empty($this->data)) {
+            $this->writeData($this->data, count($array) > 0);
         }
-
+        foreach ($array as $index => $firstChild) {
+            $haveChildren =  !empty($firstChild['children']);
+            if (self::isLast($array, $index)) {
+                $titlePrefix = $this->formats[self::TEXT_PREFIX_END];
+                $dataPrefix = $this->formats[self::LINE_PREFIX_EMPTY];
+            } else {
+                $titlePrefix = $this->formats[self::TEXT_PREFIX];
+                $dataPrefix = $this->formats[self::LINE_PREFIX];
+            }
+            $this->write(sprintf('%s%s', $titlePrefix, $firstChild['title']));
+            $this->writeData($firstChild['data'], $haveChildren, $dataPrefix);
+            $this->writeChildren($firstChild['children'], $dataPrefix);
+        }
         $this->write('');
     }
 
@@ -130,12 +129,23 @@ class TreeHelper
      */
     protected function writeData($data, $hasChildren, $prefix = null)
     {
+        $depth = 0;
         if (!empty($data)) {
             foreach ($data as $index => $line) {
+                $depth++;
                 if (false === $hasChildren && self::isLast($data, $index)) {
-                    $this->write(sprintf('%s%s%s', $prefix, $this->formats[self::TEXT_PREFIX_END], $line));
+                    if ($line === self::MAX_DEPTH_MARKER_VALUE) {
+                        $this->write(sprintf('%s¦', $prefix));
+                    } else {
+                        $this->write(sprintf('%s%s%s', $prefix, $this->formats[self::TEXT_PREFIX_END], $line));
+                    }
                 } else {
-                    $this->write(sprintf('%s%s%s', $prefix, $this->formats[self::TEXT_PREFIX], $line));
+                    if (!is_null($this->maxDepth) && $this->maxDepth <= $depth) {
+                        $this->write(sprintf('%s¦', $prefix));
+                        break;
+                    } else {
+                        $this->write(sprintf('%s%s%s', $prefix, $this->formats[self::TEXT_PREFIX], $line));
+                    }
                 }
             }
         }
@@ -148,9 +158,7 @@ class TreeHelper
     protected function writeChildren($children, $prefix = null)
     {
         foreach ($children as $index => $child) {
-
             $hasChildren = !empty($child['children']);
-
             if (self::isLast($children, $index)) {
                 $textPrefix =  $this->formats[self::TEXT_PREFIX_END];
                 $newPrefix = $prefix . $this->formats[self::LINE_PREFIX_EMPTY];
@@ -158,10 +166,8 @@ class TreeHelper
                 $textPrefix =  $this->formats[self::TEXT_PREFIX];
                 $newPrefix = $prefix . $this->formats[self::LINE_PREFIX];
             }
-
             $this->write(sprintf('%s%s%s', $prefix, $textPrefix, $child['title']));
             $this->writeData($child['data'], $hasChildren, $newPrefix);
-
             if ($hasChildren) {
                 $this->writeChildren($child['children'], $newPrefix);
             }
@@ -170,7 +176,7 @@ class TreeHelper
 
     /**
      * @param   string  $name
-     * @return  array|null
+     * @return  array|null|self[]
      */
     public function getNode($name)
     {
@@ -206,9 +212,16 @@ class TreeHelper
         if (null !== $children = $this->getNodesFromParent($this)) {
             /** @var self $child */
             foreach ($children as $child) {
+                $values = $child->getValues();
+                if (null !== $maxDepth = $child->getMaxDepth()) {
+                    if ($maxDepth < count($values)) {
+                        $values = array_slice($values, 0, $maxDepth);
+                        $values[] = self::MAX_DEPTH_MARKER_VALUE;
+                    }
+                }
                 $return[] = [
                     'title'     => $child->getTitle(),
-                    'data'      => $child->getValues(),
+                    'data'      => $values,
                     'children'  => $child->toArray(),
                 ];
             }
@@ -297,6 +310,27 @@ class TreeHelper
     }
 
     /**
+     * Method to build a the node twit multidimensional arrays
+     */
+    public function addArray($stack)
+    {
+        foreach ($stack as $title => $values) {
+            $node = new self();
+            $node->setParent($this);
+            $node->setTitle($title);
+
+            foreach($values as $key => $value) {
+                if (is_array($value)) {
+                    $node->addArray([$key => $value]);
+                } else {
+                    $node->addValue($value);
+                }
+            }
+            $this->addNode($node);
+        }
+    }
+
+    /**
      * set a stack of array instead of one by one
      *
      * @param   array $values
@@ -304,6 +338,8 @@ class TreeHelper
      */
     public function setValues(array $values)
     {
+        $this->data = [];
+
         foreach ($values as $value) {
             $this->addValue($value);
         }
@@ -387,11 +423,31 @@ class TreeHelper
     /**
      * overwrite internal style element
      *
-     * @param  array $formats
+     * @param int       $id
+     * @param string    $format
      */
     public function setFormat($id, $format)
     {
         $this->formats[$id] = $format;
+    }
+
+
+    /**
+     * @param int $maxDepth
+     * @return $this
+     */
+    public function setMaxDepth($maxDepth)
+    {
+        $this->maxDepth = $maxDepth;
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getMaxDepth()
+    {
+        return $this->maxDepth;
     }
 
 }
