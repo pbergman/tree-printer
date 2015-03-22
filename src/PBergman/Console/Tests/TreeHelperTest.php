@@ -35,6 +35,16 @@ class TreeHelperTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals($result, $this->getOutputContent($output));
     }
 
+    /**
+     * @expectedException              RuntimeException
+     * @expectedExceptionMessage       Circular reference detected.
+     */
+    public function testCircularReference()
+    {
+        $tree = new TreeHelper();
+        $tree->setParent($tree);
+    }
+
     public function testArrayInput()
     {
         $output = $this->getOutputStream();

@@ -88,7 +88,6 @@ class TreeHelper
             $root = $this->getRoot();
             $root->addNode($node);
         }
-
         return $node;
     }
 
@@ -195,7 +194,6 @@ class TreeHelper
         } else {
             return $this->getRoot()->getNode($name);
         }
-
     }
 
     /**
@@ -208,7 +206,6 @@ class TreeHelper
     public function toArray()
     {
         $return = [];
-
         if (null !== $children = $this->getNodesFromParent($this)) {
             /** @var self $child */
             foreach ($children as $child) {
@@ -226,9 +223,7 @@ class TreeHelper
                 ];
             }
         }
-
         return $return;
-
     }
 
     /**
@@ -250,7 +245,6 @@ class TreeHelper
             }
             $nodes->next();
         }
-
         return $return;
     }
 
@@ -305,7 +299,6 @@ class TreeHelper
         } else {
             throw new \InvalidArgumentException(sprintf('Invalid value given of type "%s", expecting a scalar or method that implements __toString', gettype($value)));
         }
-
         return $this;
     }
 
@@ -318,7 +311,6 @@ class TreeHelper
             $node = new self();
             $node->setParent($this);
             $node->setTitle($title);
-
             foreach($values as $key => $value) {
                 if (is_array($value)) {
                     $node->addArray([$key => $value]);
@@ -339,11 +331,9 @@ class TreeHelper
     public function setValues(array $values)
     {
         $this->data = [];
-
         foreach ($values as $value) {
             $this->addValue($value);
         }
-
         return $this;
     }
 
@@ -358,9 +348,13 @@ class TreeHelper
     /**
      * @param  mixed $parent
      * @return $this
+     * @throws \RuntimeException
      */
-    public function setParent($parent)
+    public function setParent(self $parent)
     {
+        if ($this === $instance = $parent) {
+            throw new \RuntimeException('Circular reference detected.');
+        }
         $this->parent = $parent;
         return $this;
     }
