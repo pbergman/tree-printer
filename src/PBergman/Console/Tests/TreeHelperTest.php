@@ -32,7 +32,53 @@ class TreeHelperTest extends \PHPUnit_Framework_TestCase
     {
         $output = $this->getOutputStream();
         $tree()->printTree($output);
-        $this->assertSame($result, $this->getOutputContent($output));
+        $this->assertEquals($result, $this->getOutputContent($output));
+    }
+
+    public function testArrayInput()
+    {
+        $output = $this->getOutputStream();
+        $tree = new TreeHelper();
+        $array = [
+            'alphabet' => [
+                'lowercase' => range('a','f'),
+                'uppercase' => range('A','F'),
+            ],
+            'numbers' => range(0,5),
+        ];
+        $tree->addArray($array);
+        $tree->printTree($output);
+
+        $result = <<<EOF
+.
+│
+├── alphabet
+│   ├── lowercase
+│   │   ├── a
+│   │   ├── b
+│   │   ├── c
+│   │   ├── d
+│   │   ├── e
+│   │   └── f
+│   └── uppercase
+│       ├── A
+│       ├── B
+│       ├── C
+│       ├── D
+│       ├── E
+│       └── F
+└── numbers
+    ├── 0
+    ├── 1
+    ├── 2
+    ├── 3
+    ├── 4
+    └── 5
+
+
+EOF;
+
+        $this->assertEquals($result, $this->getOutputContent($output));
     }
 
     protected function getOutputStream()
@@ -296,6 +342,138 @@ EOT
     └── second
         ├── second value
         └── second second value
+
+
+EOT
+            ],
+            [
+                function() {
+                    $tree = new TreeHelper();
+                    return $tree
+                        ->newNode('alphabet')
+                            ->newNode('lowercase')
+                                ->setValues(range('a','z'))
+                            ->end()
+                            ->newNode('uppercase')
+                                ->setValues(range('A','Z'))
+                            ->end()
+                        ->end()
+                        ->setMaxDepth(3);
+                },
+                <<<EOT
+.
+│
+└── alphabet
+    ├── lowercase
+    │   ├── a
+    │   ├── b
+    │   ¦
+    └── uppercase
+        ├── A
+        ├── B
+        ¦
+
+
+EOT
+            ],
+            [
+                function() {
+                    $tree = new TreeHelper();
+                    return $tree
+                        ->newNode('alphabet')
+                            ->newNode('lowercase')
+                                ->setValues(range('a','z'))
+                            ->end()
+                            ->newNode('uppercase')
+                                ->setMaxDepth(2)
+                                ->setValues(range('A','Z'))
+                            ->end()
+                        ->end()
+                        ->getNode('lowercase')[0];
+                },
+                <<<EOT
+lowercase
+│
+├── a
+├── b
+├── c
+├── d
+├── e
+├── f
+├── g
+├── h
+├── i
+├── j
+├── k
+├── l
+├── m
+├── n
+├── o
+├── p
+├── q
+├── r
+├── s
+├── t
+├── u
+├── v
+├── w
+├── x
+├── y
+└── z
+
+
+EOT
+            ],
+
+            [
+                function() {
+                    $tree = new TreeHelper();
+                    return $tree
+                        ->newNode('alphabet')
+                            ->newNode('lowercase')
+                                ->setValues(range('a','z'))
+                            ->end()
+                            ->newNode('uppercase')
+                                ->setMaxDepth(2)
+                                ->setValues(range('A','Z'))
+                            ->end()
+                        ->end();
+                },
+                <<<EOT
+.
+│
+└── alphabet
+    ├── lowercase
+    │   ├── a
+    │   ├── b
+    │   ├── c
+    │   ├── d
+    │   ├── e
+    │   ├── f
+    │   ├── g
+    │   ├── h
+    │   ├── i
+    │   ├── j
+    │   ├── k
+    │   ├── l
+    │   ├── m
+    │   ├── n
+    │   ├── o
+    │   ├── p
+    │   ├── q
+    │   ├── r
+    │   ├── s
+    │   ├── t
+    │   ├── u
+    │   ├── v
+    │   ├── w
+    │   ├── x
+    │   ├── y
+    │   └── z
+    └── uppercase
+        ├── A
+        ├── B
+        ¦
 
 
 EOT
