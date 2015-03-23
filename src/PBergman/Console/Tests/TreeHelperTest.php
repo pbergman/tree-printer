@@ -37,13 +37,33 @@ class TreeHelperTest extends \PHPUnit_Framework_TestCase
 
     /**
      * @expectedException              RuntimeException
-     * @expectedExceptionMessage       Circular reference detected.
+     * @expectedExceptionMessage       Circular reference detected while setting child to parent
      */
     public function testCircularReference()
     {
         $tree = new TreeHelper();
         $tree->setParent($tree);
     }
+
+
+    /**
+     * @expectedException              RuntimeException
+     * @expectedExceptionMessage       Circular reference detected while setting child to parent
+     */
+    public function testDeepCircularReference()
+    {
+        $tree = new TreeHelper();
+        $tree
+            ->newNode('a')
+            ->newNode('b')
+            ->newNode('c')
+            ->newNode('d');
+
+        $tree->findNode('d')[0]->setParent($tree->findNode('b')[0]);
+
+
+    }
+
 
     public function testArrayInput()
     {
@@ -399,7 +419,7 @@ EOT
                                 ->setValues(range('A','Z'))
                             ->end()
                         ->end()
-                        ->getNode('lowercase')[0];
+                        ->findNode('lowercase')[0];
                 },
                 <<<EOT
 lowercase

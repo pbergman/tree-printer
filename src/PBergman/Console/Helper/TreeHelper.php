@@ -177,7 +177,7 @@ class TreeHelper
      * @param   string  $name
      * @return  array|null|self[]
      */
-    public function getNode($name)
+    public function findNode($name)
     {
         if (is_null($this->parent)) {
             $return = null;
@@ -192,7 +192,7 @@ class TreeHelper
             }
             return $return;
         } else {
-            return $this->getRoot()->getNode($name);
+            return $this->getRoot()->findNode($name);
         }
     }
 
@@ -245,6 +245,24 @@ class TreeHelper
             }
             $nodes->next();
         }
+        return $return;
+    }
+
+    /**
+     * will trace back node to root and returns the stack
+     *
+     * @param   TreeHelper $node
+     * @return  array
+     */
+    protected function getTrace(self $node)
+    {
+        $return[] = $node;
+        $instance = $node;
+        while (null !== $end = $instance->end()) {
+            $return[] = $end;
+            $instance = $end;
+        }
+
         return $return;
     }
 
@@ -352,8 +370,8 @@ class TreeHelper
      */
     public function setParent(self $parent)
     {
-        if ($this === $instance = $parent) {
-            throw new \RuntimeException('Circular reference detected.');
+        if (in_array($parent, $this->getTrace($this), true)) {
+            throw new \RuntimeException('Circular reference detected while setting child to parent');
         }
         $this->parent = $parent;
         return $this;
@@ -364,7 +382,12 @@ class TreeHelper
      */
     public function getNodes()
     {
-        return $this->nodes;
+        if (is_null($this->parent)) {
+            return $this->nodes;
+        } else {
+            return $this->getNodesFromParent($this);
+        }
+
     }
 
     /**
@@ -397,7 +420,7 @@ class TreeHelper
      *
      * @param $message
      */
-    public function write($message)
+    protected  function write($message)
     {
         if (!is_null($this->output)) {
             $this->output->writeln($message);
@@ -409,7 +432,7 @@ class TreeHelper
      *
      * @param  array $formats
      */
-    public function setFormats($formats)
+    public function setFormats(array $formats)
     {
         $this->formats = $formats;
     }
