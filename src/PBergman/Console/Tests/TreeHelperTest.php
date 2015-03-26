@@ -429,8 +429,7 @@ EOT
                             ->newNode('lowercase')
                                 ->setValues(range('a','z'))
                             ->end()
-                            ->newNode('upperca76se')
-
+                            ->newNode('uppercase')
                                 ->setValues(range('A','Z'))
                             ->end()
                         ->end()
