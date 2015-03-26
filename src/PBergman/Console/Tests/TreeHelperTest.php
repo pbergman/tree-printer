@@ -37,13 +37,33 @@ class TreeHelperTest extends \PHPUnit_Framework_TestCase
 
     /**
      * @expectedException              RuntimeException
-     * @expectedExceptionMessage       Circular reference detected.
+     * @expectedExceptionMessage       Circular reference detected while setting child to parent
      */
     public function testCircularReference()
     {
         $tree = new TreeHelper();
         $tree->setParent($tree);
     }
+
+
+    /**
+     * @expectedException              RuntimeException
+     * @expectedExceptionMessage       Circular reference detected while setting child to parent
+     */
+    public function testDeepCircularReference()
+    {
+        $tree = new TreeHelper();
+        $tree
+            ->newNode('a')
+            ->newNode('b')
+            ->newNode('c')
+            ->newNode('d');
+
+        $tree->findNode('d')[0]->setParent($tree->findNode('b')[0]);
+
+
+    }
+
 
     public function testArrayInput()
     {
@@ -368,20 +388,14 @@ EOT
                                 ->setValues(range('A','Z'))
                             ->end()
                         ->end()
-                        ->setMaxDepth(3);
+                        ->setMaxDepth(2);
                 },
                 <<<EOT
 .
 │
 └── alphabet
     ├── lowercase
-    │   ├── a
-    │   ├── b
-    │   ¦
     └── uppercase
-        ├── A
-        ├── B
-        ¦
 
 
 EOT
@@ -399,91 +413,38 @@ EOT
                                 ->setValues(range('A','Z'))
                             ->end()
                         ->end()
-                        ->getNode('lowercase')[0];
-                },
-                <<<EOT
-lowercase
-│
-├── a
-├── b
-├── c
-├── d
-├── e
-├── f
-├── g
-├── h
-├── i
-├── j
-├── k
-├── l
-├── m
-├── n
-├── o
-├── p
-├── q
-├── r
-├── s
-├── t
-├── u
-├── v
-├── w
-├── x
-├── y
-└── z
-
-
-EOT
-            ],
-
-            [
-                function() {
-                    $tree = new TreeHelper();
-                    return $tree
-                        ->newNode('alphabet')
-                            ->newNode('lowercase')
-                                ->setValues(range('a','z'))
-                            ->end()
-                            ->newNode('uppercase')
-                                ->setMaxDepth(2)
-                                ->setValues(range('A','Z'))
-                            ->end()
-                        ->end();
+                        ->findNode('lowercase')[0];
                 },
                 <<<EOT
 .
 │
-└── alphabet
-    ├── lowercase
-    │   ├── a
-    │   ├── b
-    │   ├── c
-    │   ├── d
-    │   ├── e
-    │   ├── f
-    │   ├── g
-    │   ├── h
-    │   ├── i
-    │   ├── j
-    │   ├── k
-    │   ├── l
-    │   ├── m
-    │   ├── n
-    │   ├── o
-    │   ├── p
-    │   ├── q
-    │   ├── r
-    │   ├── s
-    │   ├── t
-    │   ├── u
-    │   ├── v
-    │   ├── w
-    │   ├── x
-    │   ├── y
-    │   └── z
-    └── uppercase
-        ├── A
-        ├── B
-        ¦
+└── lowercase
+    ├── a
+    ├── b
+    ├── c
+    ├── d
+    ├── e
+    ├── f
+    ├── g
+    ├── h
+    ├── i
+    ├── j
+    ├── k
+    ├── l
+    ├── m
+    ├── n
+    ├── o
+    ├── p
+    ├── q
+    ├── r
+    ├── s
+    ├── t
+    ├── u
+    ├── v
+    ├── w
+    ├── x
+    ├── y
+    └── z
 
 
 EOT

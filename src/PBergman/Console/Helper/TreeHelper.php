@@ -26,29 +26,42 @@ class TreeHelper
     /** @var  string */
     protected $title;
     /** @var  array */
-    protected $data;
+    protected $data = [];
     /** @var  OutputInterface */
-    protected $output;
+    protected static $output;
+    /** @var  string */
+    protected static $linePrefixEmpty = '    ';
+    /** @var  string */
+    protected static $linePrefix = '│   ';
+    /** @var  string */
+    protected static $textPrefix = '├── ';
+    /** @var  string */
+    protected static $textPrefixEnd = '└── ';
+    protected static $nodeHashTemplate = "HASH_REF##[%s]";
     /** @var  int */
     protected $maxDepth;
-
     const LINE_PREFIX_EMPTY = 1;
     const LINE_PREFIX = 2;
     const TEXT_PREFIX = 3;
     const TEXT_PREFIX_END = 4;
-    const MAX_DEPTH_MARKER_VALUE = '**##MAX_DEPTH##**';
 
     /** @var array  */
-    protected $formats = [
-        self::LINE_PREFIX_EMPTY => '    ',
-        self::LINE_PREFIX => '│   ',
-        self::TEXT_PREFIX => '├── ',
-        self::TEXT_PREFIX_END => '└── ',
-    ];
+    protected $formats = [];
 
     function __construct()
     {
         $this->nodes = new \SplObjectStorage();
+        $this->formats = [
+            self::LINE_PREFIX_EMPTY => self::$linePrefixEmpty,
+            self::LINE_PREFIX => self::$linePrefix,
+            self::TEXT_PREFIX => self::$textPrefix,
+            self::TEXT_PREFIX_END => self::$textPrefixEnd,
+        ];
+    }
+
+    protected function createNodeReference(self $node)
+    {
+        return sprintf(self::$nodeHashTemplate, spl_object_hash($node));
     }
 
     /**
@@ -68,27 +81,91 @@ class TreeHelper
      */
     public function addNode(self $node)
     {
-        if (null === $node->getTitle()) {
-            throw new \InvalidArgumentException('Given node does not have a title!');
-        }
-        // to fix if node is added multiple times
-        if ($this->getRoot()->getNodes()->contains($node)) {
-            $newNode = new self();
-            $newNode
-                ->setTitle($node->getTitle())
-                ->setValues($node->getValues());
-            $node = $newNode;
-        }
-        if (null === $node->end()) {
-            $node->setParent($this);
-        }
-        if (is_null($this->parent)) {
-            $this->nodes->attach($node);
-        } else {
-            $root = $this->getRoot();
-            $root->addNode($node);
-        }
+        $node = clone $node;
+        $node->setParent($this);
+        $this->nodes->attach($node);
+        $this->data[] = sprintf(self::$nodeHashTemplate, $this->nodes->getHash($node));
         return $node;
+    }
+
+    /**
+     * Static function to print direct a array
+     *
+     * @param array $data
+     * @param OutputInterface $output
+     * @param array $formats
+     */
+    public static function Format(array $data, OutputInterface $output, array $formats = [], $maxDepth = null)
+    {
+        $format = array_replace([
+            self::LINE_PREFIX_EMPTY => self::$linePrefixEmpty,
+            self::LINE_PREFIX => self::$linePrefix,
+            self::TEXT_PREFIX => self::$textPrefix,
+            self::TEXT_PREFIX_END => self::$textPrefixEnd,
+        ], $formats);
+
+        self::$output = $output;
+        self::write('.');
+        self::write('│');
+        self::render($data, '', $format, $maxDepth);
+        self::write('');
+    }
+
+    /**
+     * internal function to print the tree recursive
+     *
+     * @param array $data
+     * @param string $prefix
+     * @param array $format
+     * @internal
+     */
+    protected static function render(array $data, $prefix = '', array $format, $maxDepth = null, $depth = 0)
+    {
+        if (!is_null($maxDepth) && $maxDepth <= $depth) {
+            return;
+        }
+        foreach ($data as $index => $line) {
+            if (self::isLast($data, $index)) {
+                $titlePrefix = $prefix . $format[self::TEXT_PREFIX_END];
+                $dataPrefix = $prefix . $format[self::LINE_PREFIX_EMPTY];
+            } else {
+                $titlePrefix = $prefix . $format[self::TEXT_PREFIX];
+                $dataPrefix = $prefix . $format[self::LINE_PREFIX];;
+            }
+            if (preg_match('#^[0-9a-f]+@(?P<title>.+)$#i', $index, $m)) {
+                $index = $m['title'];
+            }
+            switch (gettype($line)) {
+                case 'boolean':
+                case 'integer':
+                case 'double':
+                case 'string':
+                case 'NULL':
+                    self::write(sprintf('%s%s', $titlePrefix, $line));
+                    break;
+                case 'array':
+                    self::write(sprintf('%s%s', $titlePrefix, $index));
+                    self::render($line, $dataPrefix, $format, $maxDepth, ++$depth);
+                    break;
+                case 'object':
+                    if (method_exists($line, '__toString')) {
+                        self::write(sprintf('%s%s', $titlePrefix, (string) $line));
+                    } else {
+                        throw new \InvalidArgumentException(sprintf('Given object should implement a __toString for class %s', get_class($line)));
+                    }
+                    break;
+                case 'resource':
+                    if (get_resource_type($line) === 'stream') {
+                        rewind($line);
+                        self::write(sprintf('%s%s', $titlePrefix, stream_get_contents($line)));
+                    } else {
+                        throw new \InvalidArgumentException(sprintf('Only supporting streams as resource, given: %s', get_resource_type($line)));
+                    }
+                    break;
+                default:
+                    throw new \InvalidArgumentException(sprintf('Unsupported type: %s', gettype($line)));
+            }
+        }
     }
 
     /**
@@ -98,102 +175,45 @@ class TreeHelper
      */
     public function printTree(OutputInterface $output)
     {
-        $this->output = $output;
-        $array = $this->toArray();
-        $this->write(!(empty($this->title)) ? $this->title : '.');
-        $this->write('│');
-        if (!empty($this->data)) {
-            $this->writeData($this->data, count($array) > 0);
-        }
-        foreach ($array as $index => $firstChild) {
-            $haveChildren =  !empty($firstChild['children']);
-            if (self::isLast($array, $index)) {
-                $titlePrefix = $this->formats[self::TEXT_PREFIX_END];
-                $dataPrefix = $this->formats[self::LINE_PREFIX_EMPTY];
-            } else {
-                $titlePrefix = $this->formats[self::TEXT_PREFIX];
-                $dataPrefix = $this->formats[self::LINE_PREFIX];
-            }
-            $this->write(sprintf('%s%s', $titlePrefix, $firstChild['title']));
-            $this->writeData($firstChild['data'], $haveChildren, $dataPrefix);
-            $this->writeChildren($firstChild['children'], $dataPrefix);
-        }
-        $this->write('');
+        self::Format($this->toArray(), $output, $this->formats, $this->maxDepth);
     }
 
-    /**
-     * @param array     $data
-     * @param bool      $hasChildren
-     * @param string    $prefix
-     */
-    protected function writeData($data, $hasChildren, $prefix = null)
-    {
-        $depth = 0;
-        if (!empty($data)) {
-            foreach ($data as $index => $line) {
-                $depth++;
-                if (false === $hasChildren && self::isLast($data, $index)) {
-                    if ($line === self::MAX_DEPTH_MARKER_VALUE) {
-                        $this->write(sprintf('%s¦', $prefix));
-                    } else {
-                        $this->write(sprintf('%s%s%s', $prefix, $this->formats[self::TEXT_PREFIX_END], $line));
-                    }
-                } else {
-                    if (!is_null($this->maxDepth) && $this->maxDepth <= $depth) {
-                        $this->write(sprintf('%s¦', $prefix));
-                        break;
-                    } else {
-                        $this->write(sprintf('%s%s%s', $prefix, $this->formats[self::TEXT_PREFIX], $line));
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * @param array     $children
-     * @param string    $prefix
-     */
-    protected function writeChildren($children, $prefix = null)
-    {
-        foreach ($children as $index => $child) {
-            $hasChildren = !empty($child['children']);
-            if (self::isLast($children, $index)) {
-                $textPrefix =  $this->formats[self::TEXT_PREFIX_END];
-                $newPrefix = $prefix . $this->formats[self::LINE_PREFIX_EMPTY];
-            } else {
-                $textPrefix =  $this->formats[self::TEXT_PREFIX];
-                $newPrefix = $prefix . $this->formats[self::LINE_PREFIX];
-            }
-            $this->write(sprintf('%s%s%s', $prefix, $textPrefix, $child['title']));
-            $this->writeData($child['data'], $hasChildren, $newPrefix);
-            if ($hasChildren) {
-                $this->writeChildren($child['children'], $newPrefix);
-            }
-        }
-    }
 
     /**
      * @param   string  $name
      * @return  array|null|self[]
      */
-    public function getNode($name)
+    public function findNode($name)
     {
-        if (is_null($this->parent)) {
-            $return = null;
-            $this->nodes->rewind();
-            while ($this->nodes->valid()) {
-                /** @var self $node */
-                $node = $this->nodes->current();
-                if ($node->getTitle() === $name) {
-                    $return[] = $node;
-                }
-                $this->nodes->next();
-            }
-            return $return;
-        } else {
-            return $this->getRoot()->getNode($name);
+        $result = [];
+        if ($this->title === $name) {
+            $result[] = $name;
         }
+        return array_merge($result, $this->search($this->nodes, $name));
+    }
+
+    /**
+     * Helper to search recersive
+     *
+     * @param \SplObjectStorage $nodes
+     * @param                   $name
+     *
+     * @return array
+     */
+    protected function search(\SplObjectStorage $nodes, $name)
+    {
+        $result = [];
+        $nodes->rewind();
+        while ($nodes->valid()) {
+            /** @var self $node */
+            $node = $nodes->current();
+            if($node->getTitle() === $name) {
+                $result[] = $nodes->current();
+            }
+            $result = array_merge($result, $this->search($node->getNodes(), $name));
+            $nodes->next();
+        }
+        return $result;
     }
 
     /**
@@ -201,50 +221,67 @@ class TreeHelper
      * this can be done on a child node and than
      * it will only get the nodes under that node
      *
-     * @return array
+     * @return  array
      */
     public function toArray()
     {
+        $pattern = sprintf("/^%s$/i", sprintf(preg_quote(self::$nodeHashTemplate, '/'),'(?P<hash>[0-9a-f]+)'));
         $return = [];
-        if (null !== $children = $this->getNodesFromParent($this)) {
-            /** @var self $child */
-            foreach ($children as $child) {
-                $values = $child->getValues();
-                if (null !== $maxDepth = $child->getMaxDepth()) {
-                    if ($maxDepth < count($values)) {
-                        $values = array_slice($values, 0, $maxDepth);
-                        $values[] = self::MAX_DEPTH_MARKER_VALUE;
-                    }
-                }
-                $return[] = [
-                    'title'     => $child->getTitle(),
-                    'data'      => $values,
-                    'children'  => $child->toArray(),
-                ];
+
+        if (!func_get_args() && !empty($this->title)) {
+            $id = sprintf('%s@%s', spl_object_hash($this), $this->getTitle());
+            $returnRef = &$return[$id];
+        } else {
+            $returnRef = &$return;
+        }
+
+        foreach ($this->data as $data) {
+            if (preg_match($pattern, $data, $m)) {
+                $node = $this->getNodeByHash($m['hash']);
+                $key = sprintf('%s@%s', $m['hash'], $node->getTitle());
+                $returnRef[$key] = $node->toArray(false);
+            } else {
+                $returnRef[] = $data;
             }
         }
         return $return;
     }
 
     /**
-     * Will return all nodes that have the given parent
+     * get a node from given hash if not exists will return null
      *
-     * @param   TreeHelper $parent
-     * @return  array|null
+     * @param   $hash
+     * @return  null|self
      */
-    protected  function getNodesFromParent(self $parent)
+    protected function getNodeByHash($hash)
     {
-        $nodes = $this->getRoot()->getNodes();
-        $nodes->rewind();
-        $return = null;
-        while ($nodes->valid()) {
-            /** @var self $node */
-            $node = $nodes->current();
-            if ($node->end() === $parent) {
-                $return[] = $node;
+        $this->nodes->rewind();
+        while ($this->nodes->valid()) {
+            $node = $this->nodes->current();
+            if ($hash === $this->nodes->getHash($node)) {
+                $this->nodes->detach($node);
+                return $node;
             }
-            $nodes->next();
+            $this->nodes->next();
         }
+        return null;
+    }
+
+    /**
+     * will trace back node to root and returns the stack
+     *
+     * @param   TreeHelper $node
+     * @return  array
+     */
+    protected function getTrace(self $node)
+    {
+        $return[] = $node;
+        $instance = $node;
+        while (null !== $end = $instance->end()) {
+            $return[] = $end;
+            $instance = $end;
+        }
+
         return $return;
     }
 
@@ -304,21 +341,29 @@ class TreeHelper
 
     /**
      * Method to build a the node twit multidimensional arrays
+     *
+     * @param array $stack
      */
-    public function addArray($stack)
+    public function addArray(array $stack, self $parent = null)
     {
+
+        if (is_null($parent)) {
+            $parent = $this;
+        }
+
         foreach ($stack as $title => $values) {
             $node = new self();
-            $node->setParent($this);
             $node->setTitle($title);
+            $node->setParent($parent);
+            $parent->getNodes()->attach($node);
+            $parent->addValue(sprintf(self::$nodeHashTemplate, spl_object_hash($node)));
             foreach($values as $key => $value) {
                 if (is_array($value)) {
-                    $node->addArray([$key => $value]);
+                    $node->addArray([$key => $value], $node);
                 } else {
                     $node->addValue($value);
                 }
             }
-            $this->addNode($node);
         }
     }
 
@@ -333,6 +378,11 @@ class TreeHelper
         $this->data = [];
         foreach ($values as $value) {
             $this->addValue($value);
+        }
+        $this->nodes->rewind();
+        while ($this->nodes->valid()) {
+            $this->data[] = sprintf(self::$nodeHashTemplate, $this->nodes->getHash($this->nodes->current()));
+            $this->nodes->next();
         }
         return $this;
     }
@@ -352,8 +402,8 @@ class TreeHelper
      */
     public function setParent(self $parent)
     {
-        if ($this === $instance = $parent) {
-            throw new \RuntimeException('Circular reference detected.');
+        if (in_array($parent, $this->getTrace($this), true)) {
+            throw new \RuntimeException('Circular reference detected while setting child to parent');
         }
         $this->parent = $parent;
         return $this;
@@ -397,10 +447,10 @@ class TreeHelper
      *
      * @param $message
      */
-    public function write($message)
+    protected static function write($message)
     {
-        if (!is_null($this->output)) {
-            $this->output->writeln($message);
+        if (!is_null(self::$output)) {
+            self::$output->writeln($message);
         }
     }
 
@@ -409,9 +459,9 @@ class TreeHelper
      *
      * @param  array $formats
      */
-    public function setFormats($formats)
+    public function setFormats(array $formats)
     {
-        $this->formats = $formats;
+        $this->formats = array_replace($this->formats, $formats);
     }
 
     /**
@@ -424,7 +474,6 @@ class TreeHelper
     {
         $this->formats[$id] = $format;
     }
-
 
     /**
      * @param int $maxDepth
@@ -443,5 +492,4 @@ class TreeHelper
     {
         return $this->maxDepth;
     }
-
 }
