@@ -316,6 +316,51 @@ EOT
                 function() {
                     $tree = new TreeHelper();
                     return $tree
+                        ->newNode('foo')
+                            ->addValue('first foo')
+                            ->addValue('second foo')
+                            ->newNode('sub foo')
+                                ->addValue('1 sub foo')
+                                ->addValue('2 sub foo')
+                                ->addValue('3 sub foo')
+                                ->addValue('4 sub foo')
+                                ->addValue('5 sub foo')
+                                ->addValue('6 sub foo')
+                            ->end()
+                            ->addValue('third foo')
+                        ->end()
+                        ->newNode('bar')
+                            ->addValue('first bar')
+                            ->addValue('second bar')
+                            ->addValue('third bar')
+                        ->end();
+                },
+                <<<EOT
+.
+│
+├── foo
+│   ├── first foo
+│   ├── second foo
+│   ├── sub foo
+│   │   ├── 1 sub foo
+│   │   ├── 2 sub foo
+│   │   ├── 3 sub foo
+│   │   ├── 4 sub foo
+│   │   ├── 5 sub foo
+│   │   └── 6 sub foo
+│   └── third foo
+└── bar
+    ├── first bar
+    ├── second bar
+    └── third bar
+
+
+EOT
+            ],
+            [
+                function() {
+                    $tree = new TreeHelper();
+                    return $tree
                         ->newNode('foo title')
                             ->addValue('foo')
                             ->addValue('bar')
