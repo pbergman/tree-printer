@@ -119,7 +119,7 @@ class TreeHelper
      * @param array $format
      * @internal
      */
-    protected static function render(array $data, $prefix = '', array $format, $maxDepth = null, $depth = 0)
+    protected static function render(array $data, $prefix, array $format, $maxDepth = null, $depth = 0)
     {
         if (!is_null($maxDepth) && $maxDepth <= $depth) {
             return;
