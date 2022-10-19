@@ -352,6 +352,11 @@ class TreeHelper
         }
 
         foreach ($stack as $title => $values) {
+            if (! is_array($values)) {
+                $title = $values;
+                $values = [];
+            }
+
             $node = new self();
             $node->setTitle($title);
             $node->setParent($parent);
