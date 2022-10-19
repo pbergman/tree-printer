@@ -99,7 +99,6 @@ class TreeHelperTest extends \PHPUnit_Framework_TestCase
 │       ├── D
 │       ├── E
 │       └── F
-
 └── numbers
     ├── 0
     ├── 1
