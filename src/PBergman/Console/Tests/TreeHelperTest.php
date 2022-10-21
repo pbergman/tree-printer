@@ -70,6 +70,7 @@ class TreeHelperTest extends \PHPUnit_Framework_TestCase
         $output = $this->getOutputStream();
         $tree = new TreeHelper();
         $array = [
+            'no-symbols',
             'alphabet' => [
                 'lowercase' => range('a','f'),
                 'uppercase' => range('A','F'),
@@ -82,6 +83,7 @@ class TreeHelperTest extends \PHPUnit_Framework_TestCase
         $result = <<<EOF
 .
 │
+├── no-symbols
 ├── alphabet
 │   ├── lowercase
 │   │   ├── a
